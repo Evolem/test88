@@ -1,2374 +1,2773 @@
+REST Open API v1
+
+    Scroll down for code samples, example requests and responses. Select a language for code samples from the tabs above or the mobile navigation menu.
+
+Base URLs:
+
+    https://api.commex.com
+
+General Info
+General API Information
+
+    The base endpoint is: https://api.commex.com
+    All endpoints return either a JSON object or array.
+    Data is returned in ascending order. Oldest first, newest last.
+    All time and timestamp related fields are in milliseconds.
+
+HTTP Return Codes
+
+    HTTP 4XX return codes are used for malformed requests; the issue is on the sender's side.
+    HTTP 403 return code is used when the WAF Limit (Web Application Firewall) has been violated.
+    HTTP 429 return code is used when breaking a request rate limit.
+    HTTP 418 return code is used when an IP has been auto-banned for continuing to send requests after receiving 429 codes.
+    HTTP 5XX return codes are used for internal errors; the issue is on Server's side. It is important to NOT treat this as a failure operation; the execution status is UNKNOWN and could have been a success.
+
+Response fields description
+Name 	Type 	Mandatory 	Description
+code 	Number 	Yes 	Error Code，0 is success，else is fail
+msg 	String 	Yes 	error message
+timestamp 	Number 	Yes 	server timestamp
+data 	Object 	No 	response data
+General Information on Endpoints
+
+    For GET endpoints, parameters must be sent as a query string.
+    For POST endpoints, the parameters may be sent as a query string or in the request body with content type application/x-www-form-urlencoded. You may mix parameters between both the query string and request body if you wish to do so.
+    Parameters may be sent in any order.
+    If a parameter sent in both the query string and request body, the body string parameter will be used.
+
+LIMITS
+General Info on Limits
+
+    The following intervalLetter values for headers:
+        SECOND => S
+        MINUTE => M
+        HOUR => H
+        DAY => D
+    intervalNum describes the amount of the interval. For example, intervalNum 5 with intervalLetter M means "Every 5 minutes".
+    A 429 will be returned when either rate limit is violated.
+
+IP Limits
+
+    Every request will contain X-MBX-USED-WEIGHT-(intervalNum)(intervalLetter) in the response headers which has the current used weight for the IP for all request rate limiters defined.
+    Each route has a weight which determines for the number of requests each endpoint counts for. Heavier endpoints and endpoints that do operations on multiple symbols will have a heavier weight.
+    When a 429 is received, it's your obligation as an API to back off and not spam the API.
+    Repeatedly violating rate limits and/or failing to back off after receiving 429s will result in an automated IP ban (HTTP status 418).
+    IP bans are tracked and scale in duration for repeat offenders, from 2 minutes to 3 days.
+    A Retry-After header is sent with a 418 or 429 responses and will give the number of seconds required to wait, in the case of a 418, to prevent a ban, or, in the case of a 429, until the ban is over.
+    The limits on the API are based on the IPs, not the API keys.
+
+We recommend using the websocket for getting data as much as possible, as this will not count to the request rate limit.
+Order Rate Limits
+
+    Every successful order response will contain a X-MBX-ORDER-COUNT-(intervalNum)(intervalLetter) header which has the current order count for the account for all order rate limiters defined.
+    Rejected/unsuccessful orders are not guaranteed to have X-MBX-ORDER-COUNT-** headers in the response.
+    The order rate limit is counted against each account.
+
+Endpoint security type
+
+    Each endpoint has a security type that determines the how you will interact with it. This is stated next to the NAME of the endpoint.
+        If no security type is stated, assume the security type is NONE.
+    API-keys are passed into the Rest API via the X-MBX-APIKEY header.
+    API-keys and secret-keys are case sensitive.
+    API-keys can be configured to only access certain types of secure endpoints. For example, one API-key could be used for SIGNED only, while another API-key can access everything except for SIGNED routes.
+    By default, API-keys can access all secure routes.
+
+Security Type 	Description
+NONE 	Endpoint can be accessed freely.
+USER_STREAM 	Endpoint requires sending a valid API-Key.
+SIGNED 	Endpoint requires sending a valid API-Key and signature.
+SIGNED Endpoint security
+
+    SIGNED endpoints require an additional parameter, signature, to be sent in the query string or request body.
+    Endpoints use HMAC SHA256 signatures. The HMAC SHA256 signature is a keyed HMAC SHA256 operation. Use your secretKey as the key and totalParams as the value for the HMAC operation.
+    The signature is not case sensitive.
+    totalParams is defined as the query string concatenated with the request body.
+
+Timing security
+
+    A SIGNED endpoint also requires a parameter, timestamp, to be sent which should be the millisecond timestamp of when the request was created and sent.
+    An additional parameter, recvWindow, may be sent to specify the number of milliseconds after timestamp the request is valid for. If recvWindow is not sent, it defaults to 5000.
+    The logic is as follows:
+
+    The logic is as follows:
+
+if (timestamp < (serverTime + 1000) && (serverTime - timestamp) <= recvWindow) {
+  // process request
+} else {
+  // reject request
+}
+
+Serious trading is about timing. Networks can be unstable and unreliable, which can lead to requests taking varying amounts of time to reach the servers. With recvWindow, you can specify that the request must be processed within a certain number of milliseconds or be rejected by the server.
+
+It is recommended to use a small recvWindow of 5000 or less! The max cannot go beyond 60,000!
+SIGNED Endpoint Examples for POST /api/v1/order
+
+Here is a step-by-step example of how to send a vaild signed payload from the Linux command line using echo, openssl, and curl.
+Key 	Value
+apiKey 	vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A
+secretKey 	NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j
+Parameter 	Value
+symbol 	LTCBTC
+side 	BUY
+type 	LIMIT
+timeInForce 	GTC
+quantity 	1
+price 	0.1
+recvWindow 	5000
+timestamp 	1499827319559
+Example 1: As a request body
+
+    requestBody:
+
+symbol=LTCBTC
+&side=BUY
+&type=LIMIT
+&timeInForce=GTC
+&quantity=1
+&price=0.1
+&recvWindow=5000
+&timestamp=1499827319559
+
+    Example 1: HMAC SHA256 signature:
+
+    Example 1: curl command:
+
+Example 2: As a query string
+
+    queryString:
+
+symbol=LTCBTC
+&side=BUY
+&type=LIMIT
+&timeInForce=GTC
+&quantity=1
+&price=0.1
+&recvWindow=5000
+&timestamp=1499827319559
+
+    Example 2: HMAC SHA256 signature:
+
+    Example 2: curl command:
+
+Example 3: Mixed query string and request body
+
+    queryString:
+
+symbol=LTCBTC
+&side=BUY
+&type=LIMIT
+&timeInForce=GTC
+
+    requestBody:
+
+quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559
+
+    Example 3: HMAC SHA256 signature:
+
+    curl command:
+
+Note that the signature is different in example 3. There is no & between "GTC" and "quantity=1".
+Public API Definitions
+Terminology
+
+    base asset refers to the asset that is the quantity of a symbol.
+    quote asset refers to the asset that is the price of a symbol.
+
+ENUM definitions
+
+Order status (status):
+Status 	Description
+NEW 	The order has been accepted by the engine.
+PARTIALLY_FILLED 	A part of the order has been filled.
+FILLED 	The order has been completed.
+CANCELED 	The order has been canceled by the user.
+REJECTED 	The order was not accepted by the engine and not processed.
+EXPIRED 	The order was canceled according to the order type's rules (e.g. LIMIT FOK orders with no fill, LIMIT IOC or MARKET orders that partially fill) or by the exchange, (e.g. orders canceled during liquidation, orders canceled during maintenance)
+
+Order types (orderTypes, type):
+
+    LIMIT
+    MARKET
+    STOP_LOSS(*)
+    STOP_LOSS_LIMIT
+    TAKE_PROFIT(*)
+    TAKE_PROFIT_LIMIT
+
+Order Response Type (newOrderRespType):
+
+    ACK
+    RESULT
+    FULL
+
+Order side (side):
+
+    BUY
+    SELL
+
+Time in force (timeInForce):
+Status 	Description
+GTC 	Good Til Canceled. An order will be on the book unless the order is canceled.
+IOC 	Immediate Or Cancel. An order will try to fill the order as much as it can before the order expires.
+FOK 	Fill or Kill. An order will expire if the full order cannot be filled upon execution.
+GTX 	Good Till Crossing. When you place a timeInForce=GTX order, it will be added to the order book, but won’t be executed immediately. The order will exist as a maker order to add liquidity to the order book.
+
+Kline/Candlestick chart intervals:
+
+m -> minutes; h -> hours; d -> days; w -> weeks; M -> months
+
+    1m
+    3m
+    5m
+    15m
+    30m
+    1h
+    2h
+    4h
+    6h
+    8h
+    12h
+    1d
+    3d
+    1w
+    1M
+
+Rate limiters (rateLimitType)
+
+    REQUEST_WEIGHT
+
+    ORDERS
+
+    RAW_REQUESTS
+
+Rate limit intervals (interval)
+
+    SECOND
+    MINUTE
+    DAY
+
+Filters
+
+Filters define trading rules on a symbol or an exchange. Filters come in two forms: symbol filters and exchange filters.
+Symbol Filters
+PRICE_FILTER
+
+The PRICE_FILTER defines the price rules for a symbol. There are 3 parts:
+
+    minPrice defines the minimum price/stopPrice allowed; disabled on minPrice == 0.
+    maxPrice defines the maximum price/stopPrice allowed; disabled on maxPrice == 0.
+    tickSize defines the intervals that a price/stopPrice can be increased/decreased by; disabled on tickSize == 0.
+
+Any of the above variables can be set to 0, which disables that rule in the price filter. In order to pass the price filter, the following must be true for price/stopPrice of the enabled rules:
+
+    price >= minPrice
+    price <= maxPrice
+    (price-minPrice) % tickSize == 0
+
+/exchangeInfo format:
+
 {
-  "settings": {
-    "number_of_shards": 1,
-    "number_of_replicas": 0,
-    "index.mapping.nested_fields.limit": 100,
-    "index.mapping.total_fields.limit": 3000
-  },
-  "mappings": {
-    "personal": {
-      "properties": {
-        "flewTimeTotal": {
-          "properties": {
-            "currentMonth": {
-              "properties": {
-                "fact": {
-                  "type": "float"
-                },
-                "plan": {
-                  "type": "float"
-                },
-                "total": {
-                  "type": "float"
-                }
-              }
-            },
-            "nextMonth": {
-              "properties": {
-                "fact": {
-                  "type": "float"
-                },
-                "plan": {
-                  "type": "float"
-                },
-                "total": {
-                  "type": "float"
-                }
-              }
-            },
-            "year": {
-              "properties": {
-                "fact": {
-                  "type": "float"
-                },
-                "plan": {
-                  "type": "float"
-                },
-                "total": {
-                  "type": "float"
-                }
-              }
-            }
-          }
-        },
-        "timeFundTotal": {
-          "properties": {
-            "month": {
-              "properties": {
-                "planTime": {
-                  "type": "long"
-                },
-                "workTime": {
-                  "type": "long"
-                }
-              }
-            },
-            "year": {
-              "properties": {
-                "planTime": {
-                  "type": "long"
-                },
-                "workTime": {
-                  "type": "long"
-                }
-              }
-            }
-          }
-        },
-        "instructorPairs": {
-          "type": "nested",
-          "properties": {
-            "instructor": {
-              "properties": {
-                "patronymic": {
-                  "type": "keyword"
-                },
-                "birthdate": {
-                  "type": "date"
-                },
-                "formPresence": {
-                  "type": "keyword"
-                },
-                "surname": {
-                  "type": "keyword"
-                },
-                "accordId": {
-                  "type": "long"
-                },
-                "sex": {
-                  "type": "keyword"
-                },
-                "name": {
-                  "type": "keyword"
-                },
-                "specialization": {
-                  "type": "keyword"
-                },
-                "categoryQualification": {
-                  "type": "long"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "state": {
-                  "type": "keyword"
-                },
-                "sapId": {
-                  "type": "long"
-                }
-              }
-            },
-            "endDate": {
-              "type": "date"
-            },
-            "id": {
-              "type": "long"
-            },
-            "traineeId": {
-              "type": "long"
-            },
-            "startDate": {
-              "type": "date"
-            },
-            "instructorId": {
-              "type": "long"
-            }
-          }
-        },
-        "assignments": {
-          "type": "nested",
-          "properties": {
-            "result": {
-              "type": "keyword"
-            },
-            "personalId": {
-              "type": "long"
-            },
-            "endDate": {
-              "type": "date"
-            },
-            "aircraft": {
-              "properties": {
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "akkordId": {
-                  "type": "keyword"
-                }
-              }
-            },
-            "id": {
-              "type": "long"
-            },
-            "type": {
-              "type": "keyword"
-            },
-            "assignmentType": {
-              "properties": {
-                "groupName": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "trakCode": {
-                  "type": "keyword"
-                },
-                "akkordId": {
-                  "type": "keyword"
-                }
-              }
-            },
-            "startDate": {
-              "type": "date"
-            }
-          }
-        },
-        "birthdate": {
-          "type": "date"
-        },
-        "education": {
-          "type": "nested",
-          "properties": {
-            "institution": {
-              "type": "keyword"
-            },
-            "personalId": {
-              "type": "long"
-            },
-            "diplomaQualification": {
-              "properties": {
-                "name": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "akkordId": {
-                  "type": "long"
-                }
-              }
-            },
-            "level": {
-              "type": "keyword"
-            },
-            "appliedToAviation": {
-              "type": "boolean"
-            },
-            "id": {
-              "type": "long"
-            },
-            "dateOfIssue": {
-              "type": "date"
-            }
-          }
-        },
-        "categoryQualification": {
-          "type": "long"
-        },
-        "timeFunds": {
-          "type": "nested",
-          "properties": {
-            "date": {
-              "type": "date"
-            },
-            "nightTime": {
-              "type": "long"
-            },
-            "personalId": {
-              "type": "long"
-            },
-            "holidayTime": {
-              "type": "long"
-            },
-            "planTime": {
-              "type": "long"
-            },
-            "id": {
-              "type": "long"
-            },
-            "workTime": {
-              "type": "long"
-            },
-            "akkordId": {
-              "type": "long"
-            }
-          }
-        },
-        "flewTimes": {
-          "type": "nested",
-          "properties": {
-            "date": {
-              "type": "date"
-            },
-            "personalId": {
-              "type": "long"
-            },
-            "indicatorType": {
-              "type": "keyword"
-            },
-            "aircraft": {
-              "properties": {
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "akkordId": {
-                  "type": "keyword"
-                }
-              }
-            },
-            "id": {
-              "type": "long"
-            },
-            "type": {
-              "type": "keyword"
-            },
-            "value": {
-              "type": "float"
-            },
-            "akkordId": {
-              "type": "long"
-            }
-          }
-        },
-        "formPresence": {
-          "type": "keyword"
-        },
-        "surname": {
-          "type": "keyword"
-        },
-        "details": {
-          "properties": {
-            "chest": {
-              "type": "long"
-            },
-            "personalId": {
-              "type": "long"
-            },
-            "shoeSize": {
-              "type": "long"
-            },
-            "growth": {
-              "type": "long"
-            },
-            "waist": {
-              "type": "long"
-            },
-            "id": {
-              "type": "long"
-            },
-            "hip": {
-              "type": "long"
-            },
-            "maritalStatus": {
-              "type": "keyword"
-            }
-          }
-        },
-        "id": {
-          "type": "long"
-        },
-        "state": {
-          "type": "keyword"
-        },
-        "department": {
-          "properties": {
-            "parentDivisionId": {
-              "type": "long"
-            },
-            "name": {
-              "type": "keyword"
-            },
-            "id": {
-              "type": "long"
-            },
-            "akkordId": {
-              "type": "long"
-            }
-          }
-        },
-        "sapId": {
-          "type": "long"
-        },
-		"brigade": {
-          "type": "long"
-        },
-        "languages": {
-          "type": "nested",
-          "properties": {
-            "fromDate": {
-              "type": "date"
-            },
-            "personalId": {
-              "type": "long"
-            },
-            "purpose": {
-              "type": "keyword"
-            },
-            "rate": {
-              "type": "long"
-            },
-            "toDate": {
-              "type": "date"
-            },
-            "language": {
-              "properties": {
-                "code": {
-                  "type": "keyword"
-                },
-                "name": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "akkordId": {
-                  "type": "long"
-                }
-              }
-            },
-            "assignmentType": {
-              "properties": {
-                "groupName": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "trakCode": {
-                  "type": "keyword"
-                },
-                "akkordId": {
-                  "type": "keyword"
-                }
-              }
-            },
-            "id": {
-              "type": "long"
-            },
-            "assignmentId": {
-              "type": "long"
-            },
-            "startDate": {
-              "type": "date"
-            },
-            "akkordId": {
-              "type": "long"
-            },
-            "expirationDate": {
-              "type": "date"
-            }
-          }
-        },
-        "accordId": {
-          "type": "long"
-        },
-        "sex": {
-          "type": "keyword"
-        },
-        "agreements": {
-          "type": "nested",
-          "properties": {
-            "personalId": {
-              "type": "long"
-            },
-            "id": {
-              "type": "long"
-            },
-            "type": {
-              "type": "keyword"
-            },
-            "startDate": {
-              "type": "date"
-            },
-            "akkordId": {
-              "type": "long"
-            }
-          }
-        },
-        "admissions": {
-          "type": "nested",
-          "properties": {
-            "fromDate": {
-              "type": "date"
-            },
-            "personalId": {
-              "type": "long"
-            },
-            "lastFlightDate": {
-              "type": "date"
-            },
-            "aircraft": {
-              "properties": {
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "akkordId": {
-                  "type": "keyword"
-                }
-              }
-            },
-            "specialization": {
-              "type": "keyword"
-            },
-            "id": {
-              "type": "long"
-            },
-            "akkordId": {
-              "type": "long"
-            }
-          }
-        },
-        "passports": {
-          "properties": {
-            "NATIONAL": {
-              "type": "nested",
-              "properties": {
-                "absenceStart": {
-                  "type": "date"
-                },
-                "personalId": {
-                  "type": "long"
-                },
-                "absenceEnd": {
-                  "type": "date"
-                },
-                "citizenship": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "issuedBy": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "absenceStatus": {
-                  "type": "keyword"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "series": {
-                  "type": "keyword"
-                },
-                "comment": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "INTERNATIONAL": {
-              "type": "nested",
-              "properties": {
-                "absenceStart": {
-                  "type": "date"
-                },
-                "personalId": {
-                  "type": "long"
-                },
-                "absenceEnd": {
-                  "type": "date"
-                },
-                "citizenship": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "issuedBy": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "absenceStatus": {
-                  "type": "keyword"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "series": {
-                  "type": "keyword"
-                },
-                "comment": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            }
-          }
-        },
-        "visas": {
-          "properties": {
-            "US": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "IN": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "IR": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "DE": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "CN": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "FR": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "GB": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "ES": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "IT": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "CZ": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "FI": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "GR": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "JP": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "SK": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "SE": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "LT": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "NL": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "EE": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "MX": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "CA": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "BE": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "AT": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "PL": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "LV": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "AU": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "HR": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "SI": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "HU": {
-              "type": "nested",
-              "properties": {
-                "country": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "region": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "number": {
-                  "type": "keyword"
-                },
-                "num": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "passportId": {
-                  "type": "long"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            }
-          }
-        },
-        "qualifications": {
-          "properties": {
-            "RETRAINING": {
-              "type": "nested",
-              "properties": {
-                "aircraftTypes": {
-                  "type": "keyword"
-                },
-                "assignmentType": {
-                  "type": "keyword"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "MANDATORY_GROUND_TRAINING": {
-              "type": "nested",
-              "properties": {
-                "aircraftTypes": {
-                  "type": "keyword"
-                },
-                "assignmentType": {
-                  "type": "keyword"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "FLIGHT_CONDITIONS_CHECK": {
-              "type": "nested",
-              "properties": {
-                "aircraftTypes": {
-                  "type": "keyword"
-                },
-                "assignmentType": {
-                  "type": "keyword"
-                },
-                "startDate": {
-                  "type": "date"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "BUSINESS_CLASS": {
-              "type": "nested",
-              "properties": {
-                "aircraftTypes": {
-                  "type": "keyword"
-                },
-                "assignmentType": {
-                  "type": "keyword"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "BUSINESS_CLASS_CATERING": {
-              "type": "nested",
-              "properties": {
-                "aircraftTypes": {
-                  "type": "keyword"
-                },
-                "assignmentType": {
-                  "type": "keyword"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "ADDITIONAL_GROUND_TRAINING": {
-              "type": "nested",
-              "properties": {
-                "aircraftTypes": {
-                  "type": "keyword"
-                },
-                "assignmentType": {
-                  "type": "keyword"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "LANG": {
-              "type": "nested",
-              "properties": {
-                "aircraftTypes": {
-                  "type": "keyword"
-                },
-                "assignmentType": {
-                  "type": "keyword"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "MEDICAL_REPORT": {
-              "type": "nested",
-              "properties": {
-                "aircraftTypes": {
-                  "type": "keyword"
-                },
-                "assignmentType": {
-                  "type": "keyword"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "VACATION": {
-              "type": "nested",
-              "properties": {
-                "aircraftTypes": {
-                  "type": "keyword"
-                },
-                "assignmentType": {
-                  "type": "keyword"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "SICK_LEAVE": {
-              "type": "nested",
-              "properties": {
-                "aircraftTypes": {
-                  "type": "keyword"
-                },
-                "assignmentType": {
-                  "type": "keyword"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "expirationDate": {
-                  "type": "date"
-                }
-              }
-            }
-          }
-        },
-        "qualificationMarks": {
-          "type": "nested",
-          "properties": {
-            "fromDate": {
-              "type": "date"
-            },
-            "flightNum": {
-              "type": "keyword"
-            },
-            "personalId": {
-              "type": "long"
-            },
-            "assignment": {
-              "properties": {
-                "result": {
-                  "type": "keyword"
-                },
-                "personalId": {
-                  "type": "long"
-                },
-                "endDate": {
-                  "type": "date"
-                },
-                "aircraft": {
-                  "properties": {
-                    "id": {
-                      "type": "long"
-                    },
-                    "type": {
-                      "type": "keyword"
-                    },
-                    "akkordId": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "assignmentType": {
-                  "properties": {
-                    "groupName": {
-                      "type": "keyword"
-                    },
-                    "id": {
-                      "type": "long"
-                    },
-                    "type": {
-                      "type": "keyword"
-                    }
-                  }
-                },
-                "startDate": {
-                  "type": "date"
-                }
-              }
-            },
-            "aircraft": {
-              "properties": {
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "akkordId": {
-                  "type": "keyword"
-                }
-              }
-            },
-            "toDate": {
-              "type": "date"
-            },
-            "checkerId": {
-              "type": "long"
-            },
-            "id": {
-              "type": "long"
-            },
-            "assignmentType": {
-              "properties": {
-                "groupName": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "trakCode": {
-                  "type": "keyword"
-                },
-                "akkordId": {
-                  "type": "long"
-                }
-              }
-            },
-            "akkordId": {
-              "type": "long"
-            }
-          }
-        },
-        "vacationLength": {
-          "type": "long"
-        },
-        "relatives": {
-          "type": "nested",
-          "properties": {
-            "personalId": {
-              "type": "long"
-            },
-            "fullName": {
-              "type": "keyword"
-            },
-            "id": {
-              "type": "long"
-            },
-            "type": {
-              "properties": {
-                "name": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "akkordId": {
-                  "type": "long"
-                }
-              }
-            },
-            "birthDate": {
-              "type": "date"
-            }
-          }
-        },
-        "standing": {
-          "type": "nested",
-          "properties": {
-            "fromDate": {
-              "type": "date"
-            },
-            "personalId": {
-              "type": "long"
-            },
-            "id": {
-              "type": "long"
-            },
-            "type": {
-              "type": "keyword"
-            },
-            "akkordId": {
-              "type": "long"
-            }
-          }
-        },
-        "patronymic": {
-          "type": "keyword"
-        },
-        "laborActivities": {
-          "type": "nested",
-          "properties": {
-            "aeroflot": {
-              "type": "boolean"
-            },
-            "division": {
-              "properties": {
-                "parent": {
-                  "type": "object",
-                  "enabled": false
-                },
-                "parentDivisionId": {
-                  "type": "long"
-                },
-                "name": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "akkordId": {
-                  "type": "long"
-                }
-              }
-            },
-            "fromDate": {
-              "type": "date"
-            },
-            "personalId": {
-              "type": "long"
-            },
-            "companyName": {
-              "type": "keyword"
-            },
-            "toDate": {
-              "type": "date"
-            },
-            "id": {
-              "type": "long"
-            },
-            "position": {
-              "properties": {
-                "name": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "long"
-                },
-                "akkordId": {
-                  "type": "long"
-                },
-                "group": {
-                  "type": "keyword"
-                }
-              }
-            }
-          }
-        },
-        "nationality": {
-          "type": "keyword"
-        },
-        "name": {
-          "type": "keyword"
-        },
-        "specialization": {
-          "type": "keyword"
-        },
-        "contacts": {
-          "type": "nested",
-          "properties": {
-            "personalId": {
-              "type": "long"
-            },
-            "id": {
-              "type": "long"
-            },
-            "type": {
-              "type": "keyword"
-            },
-            "value": {
-              "type": "keyword"
-            }
-          }
-        },
-        "flewBreaks": {
-          "properties": {
-            "personalId": {
-              "type": "long"
-            },
-            "lastFlightDate": {
-              "type": "date"
-            },
-            "dictAircraft": {
-              "properties": {
-                "id": {
-                  "type": "long"
-                },
-                "type": {
-                  "type": "keyword"
-                },
-                "akkordId": {
-                  "type": "keyword"
-                }
-              }
-            },
-            "id": {
-              "type": "long"
-            },
-            "akkordId": {
-              "type": "long"
-            }
-          }
-        },
-        "crewPairs": {
-          "properties": {
-            "pairs": {
-              "properties": {
-                "personalId": {
-                  "type": "long"
-                },
-                "akkordId": {
-                  "type": "long"
-                }
-              }
-            },
-            "antiPairs": {
-              "properties": {
-                "personalId": {
-                  "type": "long"
-                },
-                "akkordId": {
-                  "type": "long"
-                }
-              }
-            }
-          }
-        }
-      }
+  "filterType": "PRICE_FILTER",
+  "minPrice": "0.00000100",
+  "maxPrice": "100000.00000000",
+  "tickSize": "0.00000100"
+}
+
+PERCENT_PRICE
+
+The PERCENT_PRICE filter defines valid range for a price based on the average of the previous trades. avgPriceMins is the number of minutes the average price is calculated over. 0 means the last price is used.
+
+In order to pass the percent price, the following must be true for price:
+
+    price <= weightedAveragePrice * multiplierUp
+    price >= weightedAveragePrice * multiplierDown
+
+/exchangeInfo format:
+
+{
+  "filterType": "PERCENT_PRICE",
+  "multiplierUp": "1.3000",
+  "multiplierDown": "0.7000",
+  "avgPriceMins": 5
+}
+
+LOT_SIZE
+
+The LOT_SIZE filter defines the quantity (aka "lots" in auction terms) rules for a symbol. There are 3 parts:
+
+    minQty defines the minimum quantity/icebergQty allowed.
+    maxQty defines the maximum quantity/icebergQty allowed.
+    stepSize defines the intervals that a quantity/icebergQty can be increased/decreased by.
+
+In order to pass the lot size, the following must be true for quantity/icebergQty:
+
+    quantity >= minQty
+    quantity <= maxQty
+    (quantity-minQty) % stepSize == 0
+
+/exchangeInfo format:
+
+{
+  "filterType": "LOT_SIZE",
+  "minQty": "0.00100000",
+  "maxQty": "100000.00000000",
+  "stepSize": "0.00100000"
+}
+
+MIN_NOTIONAL
+
+The MIN_NOTIONAL filter defines the minimum notional value allowed for an order on a symbol. An order's notional value is the price * quantity. applyToMarket determines whether or not the MIN_NOTIONAL filter will also be applied to MARKET orders. Since MARKET orders have no price, the average price is used over the last avgPriceMins minutes. avgPriceMins is the number of minutes the average price is calculated over. 0 means the last price is used.
+
+/exchangeInfo format:
+
+{
+  "filterType": "MIN_NOTIONAL",
+  "minNotional": "0.00100000",
+  "applyToMarket": true,
+  "avgPriceMins": 5
+}
+
+ICEBERG_PARTS
+
+The ICEBERG_PARTS filter defines the maximum parts an iceberg order can have. The number of ICEBERG_PARTS is defined as CEIL(qty / icebergQty).
+
+/exchangeInfo format:
+
+{
+  "filterType": "ICEBERG_PARTS",
+  "limit": 10
+}
+
+MARKET_LOT_SIZE
+
+The MARKET_LOT_SIZE filter defines the quantity (aka "lots" in auction terms) rules for MARKET orders on a symbol. There are 3 parts:
+
+    minQty defines the minimum quantity allowed.
+    maxQty defines the maximum quantity allowed.
+    stepSize defines the intervals that a quantity can be increased/decreased by.
+
+In order to pass the market lot size, the following must be true for quantity:
+
+    quantity >= minQty
+    quantity <= maxQty
+    (quantity-minQty) % stepSize == 0
+
+/exchangeInfo format:
+
+{
+  "filterType": "MARKET_LOT_SIZE",
+  "minQty": "0.00100000",
+  "maxQty": "100000.00000000",
+  "stepSize": "0.00100000"
+}
+
+MAX_NUM_ORDERS
+
+The MAX_NUM_ORDERS filter defines the maximum number of orders an account is allowed to have open on a symbol. Note that both "algo" orders and normal orders are counted for this filter.
+
+/exchangeInfo format:
+
+{
+  "filterType": "MAX_NUM_ORDERS",
+  "limit": 25
+}
+
+MAX_NUM_ALGO_ORDERS(*)
+
+The MAX_NUM_ALGO_ORDERS filter defines the maximum number of "algo" orders an account is allowed to have open on a symbol. "Algo" orders are STOP_LOSS, STOP_LOSS_LIMIT, TAKE_PROFIT, and TAKE_PROFIT_LIMIT orders.
+
+/exchangeInfo format:
+
+{
+  "filterType": "MAX_NUM_ALGO_ORDERS",
+  "maxNumAlgoOrders": 5
+}
+
+MAX_NUM_ICEBERG_ORDERS(*)
+
+The MAX_NUM_ICEBERG_ORDERS filter defines the maximum number of ICEBERG orders an account is allowed to have open on a symbol. An ICEBERG order is any order where the icebergQty is > 0.
+
+/exchangeInfo format:
+
+{
+  "filterType": "MAX_NUM_ICEBERG_ORDERS",
+  "maxNumIcebergOrders": 5
+}
+
+Exchange Filters
+EXCHANGE_MAX_NUM_ORDERS
+
+The MAX_NUM_ORDERS filter defines the maximum number of orders an account is allowed to have open on the exchange. Note that both "algo" orders and normal orders are counted for this filter.
+EXCHANGE_MAX_NUM_ALGO_ORDERS(*)
+
+The MAX_ALGO_ORDERS filter defines the maximum number of "algo" orders an account is allowed to have open on the exchange. "Algo" orders are STOP_LOSS, STOP_LOSS_LIMIT, TAKE_PROFIT, and TAKE_PROFIT_LIMIT orders.
+Tips
+
+The above are marked with "(*)" may NOT be supported by SITE symbols.
+General endpoints
+Check Server Time
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/time");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+GET /api/v1/time
+
+Test connectivity to the Rest API and get the current server time.
+
+Weight(IP): 1
+
+    Example responses
+
+    200 Response
+
+{ "serverTime": 1655374964469 }
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+This operation does not require authentication
+Exchange Information
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/exchangeInfo");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+GET /api/v1/exchangeInfo
+
+Current exchange trading rules and symbol information.
+
+Weight(IP): 10
+
+    Example responses
+
+    200 Response
+
+{
+  "timezone": "UTC",
+  "serverTime": 1565246363776,
+  "rateLimits": [{}],
+  "exchangeFilters": [],
+  "symbols": [
+    {
+      "symbol": "ETHBTC",
+      "status": "TRADING",
+      "baseAsset": "ETH",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "BTC",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "type": "GLOBAL",
+      "orderTypes": ["LIMIT", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "filters": []
     }
+  ]
+}
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+This operation does not require authentication
+Check Symbol Type
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/symbolType");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+GET /api/v1/symbolType
+
+Check Symbol Type, type will be GLOBAL or SITE.
+
+Weight(IP): 1
+
+    Example responses
+
+    200 Response
+
+[
+  { "symbol": "BTCBUSD", "type": "GLOBAL" },
+  { "symbol": "BTCUSDT", "type": "SITE" }
+]
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+This operation does not require authentication
+Market Data endpoints
+Symbol Order Book Ticker
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/ticker/bookTicker?symbol=string");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+GET /api/v1/ticker/bookTicker
+
+Best price/qty on the order book for a symbol or symbols.
+
+Weight(IP): 1
+Parameters
+Name 	In 	Type 	Required 	Description
+symbol 	query 	string 	true 	none
+symbols 	query 	string 	false 	none
+
+    Example responses
+
+    200 Response
+
+[
+  {
+    "symbol": "ETHBTC",
+    "bidPrice": "0.07946700",
+    "bidQty": "9.00000000",
+    "askPrice": "100000.00000000",
+    "askQty": "1000.00000000"
+  }
+]
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+This operation does not require authentication
+Kline/Candlestick Data
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/klines?symbol=string&interval=string");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+GET /api/v1/klines
+
+Kline/candlestick bars for a symbol. Klines are uniquely identified by their open time.
+
+Weight(IP): 1
+Parameters
+Name 	In 	Type 	Required 	Description
+symbol 	query 	string 	true 	none
+interval 	query 	string 	true 	none
+startTime 	query 	long 	false 	none
+endTime 	query 	long 	false 	none
+limit 	query 	integer 	false 	Default 500; max 1000.
+
+    Example responses
+
+    200 Response
+
+[
+  [
+    1499040000000,      // Open time
+    "0.01634790",       // Open
+    "0.80000000",       // High
+    "0.01575800",       // Low
+    "0.01577100",       // Close
+    "148976.11427815",  // Volume
+    1499644799999,      // Close time
+    "2434.19055334",    // Quote asset volume
+    308,                // Number of trades
+    "1756.87402397",    // Taker buy base asset volume
+    "28.46694368"       // Taker buy quote asset volume
+  ]
+]
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+This operation does not require authentication
+24hr Ticker Price Change Statistics
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/ticker/24hr?symbol=string");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+GET /api/v1/ticker/24hr
+
+24 hour rolling window price change statistics.
+
+Weight(IP): 1
+Parameters
+Name 	In 	Type 	Required 	Description
+symbol 	query 	string 	true 	none
+
+    Example responses
+
+    200 Response
+
+{
+  "symbol": "BTCUSDT",
+  "priceChange": "-94.99999800",
+  "priceChangePercent": "-95.960",
+  "weightedAvgPrice": "0.29628482",
+  "prevClosePrice": "0.10002000",
+  "lastPrice": "4.00000200",
+  "lastQty": "200.00000000",
+  "bidPrice": "4.00000000",
+  "bidQty": "100.00000000",
+  "askPrice": "4.00000200",
+  "askQty": "100.00000000",
+  "openPrice": "99.00000000",
+  "highPrice": "100.00000000",
+  "lowPrice": "0.10000000",
+  "volume": "8913.30000000",
+  "quoteVolume": "15.30000000",
+  "openTime": 1499783499040,
+  "closeTime": 1499869899040,
+  "firstId": 28385,
+  "lastId": 28460,
+  "count": 76
+}
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+This operation does not require authentication
+Order Book
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/depth?symbol=string");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+GET /api/v1/depth
+
+Get Order Book.
+
+Weight(IP):
+
+Adjusted based on the limit: | Limit | Weight || --- | --- ||1-100|1||101-500|5||501-1000|10|
+Parameters
+Name 	In 	Type 	Required 	Description
+symbol 	query 	string 	true 	none
+limit 	query 	integer 	false 	Default 500; max 1000.
+Detailed descriptions
+
+limit: Default 500; max 1000. If limit > 1000, then the response will truncate to 1000.
+
+    Example responses
+
+    200 Response
+
+{
+  "lastUpdateId": 1027024,
+  "bids": [["4.00000000", "431.00000000"]],
+  "asks": [["4.00000200", "12.00000000"]]
+}
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+This operation does not require authentication
+Recent Trades List
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/trades?symbol=string");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+GET /api/v1/trades
+
+Get recent trades.
+
+Weight(IP): 1
+Parameters
+Name 	In 	Type 	Required 	Description
+symbol 	query 	string 	true 	none
+limit 	query 	integer 	false 	Default 500; max 1000.
+
+    Example responses
+
+    200 Response
+
+[
+  {
+    "id": 28457,
+    "price": "4.00000100",
+    "qty": "12.00000000",
+    "quoteQty": "48.000012",
+    "time": 1499865549590,
+    "isBuyerMaker": true,
+    "isBestMatch": true
+  }
+]
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+This operation does not require authentication
+Compressed/Aggregate Trades List
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/aggTrades?symbol=string");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+GET /api/v1/aggTrades
+
+Get compressed, aggregate trades. Trades that fill at the time, from the same order, with the same price will have the quantity aggregated.
+
+Weight(IP): 1
+Parameters
+Name 	In 	Type 	Required 	Description
+symbol 	query 	string 	true 	none
+fromId 	query 	long 	false 	id to get aggregate trades from INCLUSIVE.
+startTime 	query 	long 	false 	Timestamp in ms to get aggregate trades from INCLUSIVE.
+endTime 	query 	long 	false 	Timestamp in ms to get aggregate trades until INCLUSIVE.
+limit 	query 	integer 	false 	Default 500; max 1000.
+
+    Example responses
+
+    200 Response
+
+[
+  {
+    "a": 26129,          // Aggregate tradeId
+    "p": "0.01633102",   // Price
+    "q": "4.70443515",   // Quantity
+    "f": 27781,          // First tradeId
+    "l": 27781,          // First tradeId
+    "T": 1498793709153,  // Timestamp
+    "m": true            // Was the buyer the maker?
+  }
+]
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+This operation does not require authentication
+Symbol Price Ticker
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/ticker/price");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+GET /api/v1/ticker/price
+
+Latest price for a symbol or symbols.
+
+Weight(IP): |Parameter|Symbols Provided|Weight|| --- | --- | --- ||symbol|1|1|||symbol parameter is omitted|2|
+Parameters
+Name 	In 	Type 	Required 	Description
+symbol 	query 	string 	false 	none
+
+    Example responses
+
+    200 Response
+
+{ "symbol": "LTCBTC", "price": "4.01380200" }
+
+    OR
+
+[ 
+  { 
+    "symbol": "LTCBTC", 
+    "price": "4.01380200" 
+  }, 
+  { 
+    "symbol": "ETHBTC", 
+    "price": "0.07946600" 
+  } 
+] 
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+This operation does not require authentication
+Account Endpoints
+Account Information
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/account");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+GET /api/v1/account
+
+Get current account information.
+
+Weight(IP): 10
+Parameters
+Name 	In 	Type 	Required 	Description
+recvWindow 	query 	long 	false 	The value cannot be greater than 60000
+timestamp 	query 	long 	true 	none
+
+    Example responses
+
+    200 Response
+
+{
+  "makerCommission": 15,
+  "takerCommission": 15,
+  "buyerCommission": 0,
+  "sellerCommission": 0,
+  "canTrade": true,
+  "canWithdraw": true,
+  "canDeposit": true,
+  "updateTime": 123456789,
+  "balances": [
+    { "asset": "BTC", "free": "4723846.89208129", "locked": "0.00000000" },
+    { "asset": "LTC", "free": "4763368.68006011", "locked": "0.00000000" }
+  ]
+}
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+To perform this operation, you must be authenticated by means of one of the following methods: X-MBX-APIKEY
+Account Trade List
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/userTrades?symbol=string");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+GET /api/v1/userTrades
+
+Get trades for a specific account and symbol.
+
+Weight(IP): 10
+Parameters
+Name 	In 	Type 	Required 	Description
+symbol 	query 	string 	true 	none
+orderId 	query 	long 	false 	This can only be used in combination with symbol.
+startTime 	query 	long 	false 	none
+endTime 	query 	long 	false 	none
+fromId 	query 	long 	false 	TradeId to fetch from. Default gets most recent trades.
+limit 	query 	integer 	false 	Default 500; max 1000.
+recvWindow 	query 	long 	false 	The value cannot be greater than 60000
+timestamp 	query 	long 	true 	none
+
+    Example responses
+
+    200 Response
+
+[
+  {
+    "symbol": "BTCUSDT",
+    "id": 28457,
+    "orderId": 100234,
+    "price": "4.00000100",
+    "qty": "12.00000000",
+    "quoteQty": "48.000012",
+    "commission": "10.10000000",
+    "commissionAsset": "BNB",
+    "time": 1499865549590,
+    "isBuyer": true,
+    "isMaker": false,
+    "isBestMatch": true
+  }
+]
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+To perform this operation, you must be authenticated by means of one of the following methods: X-MBX-APIKEY
+Trade Fee
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/asset/tradeFee");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+GET /api/v1/asset/tradeFee
+
+Fetch trade fee.
+
+Weight(IP): 1
+Parameters
+Name 	In 	Type 	Required 	Description
+symbol 	query 	string 	false 	none
+recvWindow 	query 	long 	false 	The value cannot be greater than 60000
+timestamp 	query 	long 	true 	none
+
+    Example responses
+
+    200 Response
+
+[
+  {
+    "symbol": "ADABNB",
+    "makerCommission": "0.001",
+    "takerCommission": "0.001"
   },
-  "aliases": {
-    "crew-demo": {}
+  {
+    "symbol": "BTCUSDT",
+    "makerCommission": "0.001",
+    "takerCommission": "0.001"
+  }
+]
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+To perform this operation, you must be authenticated by means of one of the following methods: X-MBX-APIKEY
+Order Endpoints
+Query Order
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/order?symbol=string");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+GET /api/v1/order
+
+Check an order's status.
+
+Weight(IP): 2
+Parameters
+Name 	In 	Type 	Required 	Description
+symbol 	query 	string 	true 	none
+orderId 	query 	long 	false 	none
+origClientOrderId 	query 	string 	false 	none
+recvWindow 	query 	long 	false 	The value cannot be greater than 60000
+timestamp 	query 	long 	true 	none
+
+    Example responses
+
+    200 Response
+
+{
+  "symbol": "LTCBTC",
+  "orderId": 1,
+  "clientOrderId": "myOrder1",
+  "price": "0.1",
+  "origQty": "1.0",
+  "executedQty": "0.0",
+  "cumulativeQuoteQty": "0.0",
+  "status": "NEW",
+  "timeInForce": "GTC",
+  "type": "LIMIT",
+  "side": "BUY",
+  "stopPrice": "0.0",
+  "time": 1499827319559,
+  "updateTime": 1499827319559,
+  "isWorking": true,
+  "origQuoteOrderQty": "0.000000"
+}
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+To perform this operation, you must be authenticated by means of one of the following methods: X-MBX-APIKEY
+New Order
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/order?symbol=string&side=string&type=string");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("POST");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+POST /api/v1/order
+
+Send in a new order.
+
+Weight(UID): 1 Weight(IP): 1
+Parameters
+Name 	In 	Type 	Required 	Description
+symbol 	query 	string 	true 	none
+side 	query 	string 	true 	none
+type 	query 	string 	true 	none
+timeInForce 	query 	string 	false 	none
+quantity 	query 	number 	false 	none
+quoteOrderQty 	query 	number 	false 	none
+price 	query 	number 	false 	none
+newClientOrderId 	query 	string 	false 	A unique id among open orders. Automatically generated if not sent.
+stopPrice 	query 	number 	false 	Used with STOP_LOSS, STOP_LOSS_LIMIT, TAKE_PROFIT, and TAKE_PROFIT_LIMIT orders.
+recvWindow 	query 	long 	false 	The value cannot be greater than 60000
+timestamp 	query 	long 	true 	none
+
+    Example responses
+
+    200 Response
+
+{
+  "symbol": "BTCUSDT",
+  "orderId": 28,
+  "clientOrderId": "6gCrw2kRUAF9CvJDGP16IP",
+  "transactTime": 1507725176595,
+  "price": "0.00000000",
+  "origQty": "10.00000000",
+  "executedQty": "10.00000000",
+  "cumulativeQuoteQty": "10.00000000",
+  "status": "FILLED",
+  "timeInForce": "GTC",
+  "type": "MARKET",
+  "side": "SELL",
+  "fills": [
+    {
+      "price": "4000.00000000",
+      "qty": "1.00000000",
+      "commission": "4.00000000",
+      "commissionAsset": "USDT",
+      "tradeId": 56
+    },
+    {
+      "price": "3999.00000000",
+      "qty": "5.00000000",
+      "commission": "19.99500000",
+      "commissionAsset": "USDT",
+      "tradeId": 57
+    },
+    {
+      "price": "3998.00000000",
+      "qty": "2.00000000",
+      "commission": "7.99600000",
+      "commissionAsset": "USDT",
+      "tradeId": 58
+    },
+    {
+      "price": "3997.00000000",
+      "qty": "1.00000000",
+      "commission": "3.99700000",
+      "commissionAsset": "USDT",
+      "tradeId": 59
+    },
+    {
+      "price": "3995.00000000",
+      "qty": "1.00000000",
+      "commission": "3.99500000",
+      "commissionAsset": "USDT",
+      "tradeId": 60
+    }
+  ]
+}
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+To perform this operation, you must be authenticated by means of one of the following methods: X-MBX-APIKEY
+Delete order
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/order?symbol=string");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("DELETE");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+DELETE /api/v1/order
+
+Cancel an active order.
+
+Weight(IP): 1
+Parameters
+Name 	In 	Type 	Required 	Description
+symbol 	query 	string 	true 	none
+orderId 	query 	long 	false 	none
+origClientOrderId 	query 	string 	false 	none
+timestamp 	query 	long 	true 	none
+recvWindow 	query 	long 	false 	none
+signature 	query 	string 	false 	none
+
+    Example responses
+
+    200 Response
+
+{
+  "symbol": "LTCBTC",
+  "origClientOrderId": "myOrder1",
+  "orderId": 4,
+  "price": "2.00000000",
+  "origQty": "1.00000000",
+  "executedQty": "0.00000000",
+  "cumulativeQuoteQty": "0.00000000",
+  "status": "CANCELED",
+  "timeInForce": "GTC",
+  "type": "LIMIT",
+  "side": "BUY"
+}
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+To perform this operation, you must be authenticated by means of one of the following methods: X-MBX-APIKEY
+All Orders
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/allOrders?symbol=string");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+GET /api/v1/allOrders
+
+Get all account orders; active, canceled, or filled.
+
+Weight(IP): 10 with symbol
+Parameters
+Name 	In 	Type 	Required 	Description
+symbol 	query 	string 	true 	none
+orderId 	query 	long 	false 	none
+startTime 	query 	long 	false 	none
+endTime 	query 	long 	false 	none
+limit 	query 	integer 	false 	Default 500; max 1000.
+recvWindow 	query 	long 	false 	The value cannot be greater than 60000
+timestamp 	query 	long 	true 	none
+
+    Example responses
+
+    200 Response
+
+[
+  {
+    "symbol": "LTCBTC",
+    "orderId": 1,
+    "clientOrderId": "myOrder1",
+    "price": "0.1",
+    "origQty": "1.0",
+    "executedQty": "0.0",
+    "cumulativeQuoteQty": "0.0",
+    "status": "NEW",
+    "timeInForce": "GTC",
+    "type": "LIMIT",
+    "side": "BUY",
+    "stopPrice": "0.0",
+    "time": 1499827319559,
+    "updateTime": 1499827319559,
+    "isWorking": true,
+    "origQuoteOrderQty": "0.000000"
+  }
+]
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+To perform this operation, you must be authenticated by means of one of the following methods: X-MBX-APIKEY
+Current Open Orders
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/openOrders");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+GET /api/v1/openOrders
+
+Get all open orders on a symbol. Careful when accessing this with no symbol. Weight(IP): 3 for a single symbol; 40 when the symbol parameter is omitted;
+Parameters
+Name 	In 	Type 	Required 	Description
+symbol 	query 	string 	false 	none
+recvWindow 	query 	long 	false 	The value cannot be greater than 60000
+timestamp 	query 	long 	true 	none
+
+    Example responses
+
+    200 Response
+
+[
+  {
+    "symbol": "LTCBTC",
+    "orderId": 1,
+    "clientOrderId": "myOrder1",
+    "price": "0.1",
+    "origQty": "1.0",
+    "executedQty": "0.0",
+    "cumulativeQuoteQty": "0.0",
+    "status": "NEW",
+    "timeInForce": "GTC",
+    "type": "LIMIT",
+    "side": "BUY",
+    "stopPrice": "0.0",
+    "time": 1499827319559,
+    "updateTime": 1499827319559,
+    "isWorking": true,
+    "origQuoteOrderQty": "0.000000"
+  }
+]
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+To perform this operation, you must be authenticated by means of one of the following methods: X-MBX-APIKEY
+Cancel all Open Orders on Symbols
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/openOrders?symbol=string");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("DELETE");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+DELETE /api/v1/openOrders
+
+Cancels all active orders on a symbol or symbols. Weight(IP): 1
+Parameters
+Name 	In 	Type 	Required 	Description
+symbol 	query 	string 	true 	symbols, eg: BTCUSDT,BTCBUSD
+recvWindow 	query 	long 	false 	The value cannot be greater than 60000
+timestamp 	query 	long 	true 	none
+
+    Example responses
+
+    200 Response
+
+{ "code": 200, "msg": "The operation of cancel all open order is done." }
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+To perform this operation, you must be authenticated by means of one of the following methods: X-MBX-APIKEY
+New Oco Order
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/order/oco?symbol=string&side=string&quantity=0&price=0&stopPrice=0");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("POST");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+POST /api/v1/order/oco
+
+Send in a new oco order.
+
+Weight(UID): 2 Weight(IP): 1
+Parameters
+Name 	In 	Type 	Required 	Description
+symbol 	query 	string 	true 	none
+side 	query 	string 	true 	none
+listClientOrderId 	query 	string 	false 	A unique id for order list.
+stopClientOrderId 	query 	string 	false 	A unique id for stop limit order.
+quantity 	query 	number 	true 	none
+price 	query 	number 	true 	none
+stopPrice 	query 	number 	true 	none
+stopLimitPrice 	query 	number 	false 	none
+timeInForce 	query 	string 	false 	none
+recvWindow 	query 	long 	false 	The value cannot be greater than 60000
+timestamp 	query 	long 	false 	none
+
+    Example responses
+
+    200 Response
+
+{
+  "symbol": "BTCUSDT",
+  "orderId": 28,
+  "clientOrderId": "6gCrw2kRUAF9CvJDGP16IP",
+  "transactTime": 1507725176595,
+  "price": "0.00000000",
+  "origQty": "10.00000000",
+  "executedQty": "10.00000000",
+  "cumulativeQuoteQty": "10.00000000",
+  "status": "FILLED",
+  "timeInForce": "GTC",
+  "type": "MARKET",
+  "side": "SELL",
+  "fills": [
+    {
+      "price": "4000.00000000",
+      "qty": "1.00000000",
+      "commission": "4.00000000",
+      "commissionAsset": "USDT",
+      "tradeId": 56
+    },
+    {
+      "price": "3999.00000000",
+      "qty": "5.00000000",
+      "commission": "19.99500000",
+      "commissionAsset": "USDT",
+      "tradeId": 57
+    },
+    {
+      "price": "3998.00000000",
+      "qty": "2.00000000",
+      "commission": "7.99600000",
+      "commissionAsset": "USDT",
+      "tradeId": 58
+    },
+    {
+      "price": "3997.00000000",
+      "qty": "1.00000000",
+      "commission": "3.99700000",
+      "commissionAsset": "USDT",
+      "tradeId": 59
+    },
+    {
+      "price": "3995.00000000",
+      "qty": "1.00000000",
+      "commission": "3.99500000",
+      "commissionAsset": "USDT",
+      "tradeId": 60
+    }
+  ]
+}
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+To perform this operation, you must be authenticated by means of one of the following methods: X-MBX-APIKEY
+Delete oco order
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/order/oco?symbol=string");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("DELETE");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+DELETE /api/v1/order/oco
+
+Cancel an active oco order.
+
+Weight(IP): 1
+Parameters
+Name 	In 	Type 	Required 	Description
+symbol 	query 	string 	true 	none
+orderListId 	query 	long 	false 	none
+timestamp 	query 	long 	true 	none
+recvWindow 	query 	long 	false 	none
+signature 	query 	string 	false 	none
+
+    Example responses
+
+    200 Response
+
+{
+  "symbol": "LTCBTC",
+  "origClientOrderId": "myOrder1",
+  "orderId": 4,
+  "price": "2.00000000",
+  "origQty": "1.00000000",
+  "executedQty": "0.00000000",
+  "cumulativeQuoteQty": "0.00000000",
+  "status": "CANCELED",
+  "timeInForce": "GTC",
+  "type": "LIMIT",
+  "side": "BUY"
+}
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+To perform this operation, you must be authenticated by means of one of the following methods: X-MBX-APIKEY
+Wallet Endpoints
+Withdraw
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/capital/withdraw?coin=string&address=string&amount=0");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("POST");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+POST /api/v1/capital/withdraw
+
+Submit a withdraw request.
+
+Weight(IP): 1
+Parameters
+Name 	In 	Type 	Required 	Description
+coin 	query 	string 	true 	none
+withdrawOrderId 	query 	string 	false 	Client's custom ID for withdraw order, Server does not check it's uniqueness. Automatically generated if not sent.
+network 	query 	string 	false 	none
+address 	query 	string 	true 	none
+addressTag 	query 	string 	false 	Secondary address identifier for coins like XRP,XMR etc.
+amount 	query 	number 	true 	none
+transactionFeeFlag 	query 	boolean 	false 	When making internal transfer, true for returning the fee to the destination account; false for returning the fee back to the departure account. Default false.
+name 	query 	string 	false 	Description of the address. Space in name should be encoded into %20.
+recvWindow 	query 	long 	false 	The value cannot be greater than 60000
+timestamp 	query 	long 	true 	none
+
+    Example responses
+
+    200 Response
+
+{ "id": "7213fea8e94b4a5593d507237e5a555b" }
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+To perform this operation, you must be authenticated by means of one of the following methods: X-MBX-APIKEY
+User deposit address
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/capital/deposit/address?coin=string");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+GET /api/v1/capital/deposit/address
+
+Fetch deposit address with network.
+
+Weight(IP): 10
+Parameters
+Name 	In 	Type 	Required 	Description
+coin 	query 	string 	true 	none
+network 	query 	string 	false 	none
+recvWindow 	query 	long 	false 	The value cannot be greater than 60000
+timestamp 	query 	long 	true 	none
+
+    Example responses
+
+    200 Response
+
+{
+  "address": "1HPn8Rx2y6nNSfagQBKy27GB99Vbzg89wv",
+  "coin": "BTC",
+  "tag": "",
+  "url": "https://btc.com/1HPn8Rx2y6nNSfagQBKy27GB99Vbzg89wv"
+}
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+To perform this operation, you must be authenticated by means of one of the following methods: X-MBX-APIKEY
+User Universal Transfer (USER_DATA)
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/asset/transfer");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("POST");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+POST /api/v1/asset/transfer
+
+You need to enable Permits Universal Transfer option for the API Key which requests this endpoint.
+
+Weight(UID): 150
+Parameters
+Name 	In 	Type 	Required 	Description
+type 	query 	ENUM 	true 	MAIN_FUTURE Spot account transfer to USDⓈ-M Futures account
+asset 	query 	string 	true 	none
+amount 	query 	bigDecimal 	true 	none
+recvWindow 	query 	long 	false 	The value cannot be greater than 60000
+timestamp 	query 	long 	true 	none
+Detailed descriptions
+
+type: MAIN_FUTURE Spot account transfer to USDⓈ-M Futures account FUTURE_MAIN USDⓈ-M Futures account transfer to Spot account MAIN_FUNDING Spot account transfer to Funding account FUNDING_MAIN Funding account transfer to Spot account FUNDING_FUTURE Funding account transfer to USDⓈ-M account FUTURE_FUNDING USDⓈ-M account transfer to Funding account
+
+    Example responses
+
+    200 Response
+
+{
+  "tranId": 1699964913001,
+  "status": "CONFIRMED" /** status: CONFIRMED / FAILED / PENDING **/
+}
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+To perform this operation, you must be authenticated by means of one of the following methods: X-MBX-APIKEY
+User deposit history
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/capital/deposit/history");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+GET /api/v1/capital/deposit/history
+
+Fetch deposit history.
+
+Weight(IP): 1
+Parameters
+Name 	In 	Type 	Required 	Description
+coin 	query 	string 	false 	none
+txId 	query 	string 	false 	none
+status 	query 	integer 	false 	0(0:pending,6: credited but cannot withdraw, 1:success)
+startTime 	query 	long 	false 	Default: 90 days from current timestamp
+endTime 	query 	long 	false 	Default: present timestamp
+offset 	query 	integer 	false 	Default:0
+limit 	query 	integer 	false 	Default 100; max 1000.
+recvWindow 	query 	long 	false 	The value cannot be greater than 60000
+timestamp 	query 	long 	true 	none
+
+    Example responses
+
+    200 Response
+
+[
+  {
+    "id": "1",
+    "amount": "0.00999800",
+    "coin": "PAXG",
+    "network": "ETH",
+    "status": 1,
+    "address": "0x788cabe9236ce061e5a892e1a59395a81fc8d62c",
+    "addressTag": "",
+    "txId": "0xaad4654a3234aa6118af9b4b335f5ae81c360b2394721c019b5d1e75328b09f3",
+    "insertTime": 1599621997000,
+    "transferType": 0,
+    "confirmTimes": "12/12"
+  },
+  {
+    "id": "2",
+    "amount": "0.50000000",
+    "coin": "IOTA",
+    "network": "IOTA",
+    "status": 1,
+    "address": "SIZ9VLMHWATXKV99LH99CIGFJFUMLEHGWVZVNNZXRJJVWBPHYWPPBOSDORZ9EQSHCZAMPVAPGFYQAUUV9DROOXJLNW",
+    "addressTag": "",
+    "txId": "ESBFVQUTPIWQNJSPXFNHNYHSQNTGKRVKPRABQWTAXCDWOAKDKYWPTVG9BGXNVNKTLEJGESAVXIKIZ9999",
+    "insertTime": 1599620082000,
+    "transferType": 0,
+    "confirmTimes": "1/1"
+  }
+]
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+To perform this operation, you must be authenticated by means of one of the following methods: X-MBX-APIKEY
+Query User Universal Transfer History (USER_DATA)
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/asset/transfer-history");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+GET /api/v1/asset/transfer-history
+
+Weight(IP): 1
+Parameters
+Name 	In 	Type 	Required 	Description
+type 	query 	ENUM 	true 	MAIN_FUTURE Spot account transfer to USDⓈ-M Futures account
+startTime 	query 	long 	false 	Support query within the last 6 months only
+endTime 	query 	long 	false 	If startTime and endTime not sent, return records of the last 7 days by default
+current 	query 	long 	false 	Default 1
+size 	query 	long 	false 	Default 10, Max 100
+recvWindow 	query 	long 	false 	The value cannot be greater than 60000
+timestamp 	query 	long 	true 	none
+Detailed descriptions
+
+type: MAIN_FUTURE Spot account transfer to USDⓈ-M Futures account FUTURE_MAIN USDⓈ-M Futures account transfer to Spot account MAIN_FUNDING Spot account transfer to Funding account FUNDING_MAIN Funding account transfer to Spot account FUNDING_FUTURE Funding account transfer to USDⓈ-M account FUTURE_FUNDING USDⓈ-M account transfer to Funding account
+
+    Example responses
+
+    200 Response
+
+{
+  "total": 2,
+  "data": [
+    {
+      "asset": "USDT",
+      "amount": "1",
+      "type": "MAIN_FUTURE",
+      "status": "CONFIRMED",
+      "tranId": 1699964913001,
+      "timestamp": 1692016113000
+    },
+    {
+      "asset": "USDT",
+      "amount": "2",
+      "status": "CONFIRMED",
+      "type": "MAIN_FUTURE",
+      "tranId": 1699964912001,
+      "timestamp": 1692016113000
+    }
+  ]
+}
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+To perform this operation, you must be authenticated by means of one of the following methods: X-MBX-APIKEY
+User withdraw history
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/capital/withdraw/history");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("GET");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+GET /api/v1/capital/withdraw/history
+
+Fetch withdraw history.
+
+Weight(IP): 1
+Parameters
+Name 	In 	Type 	Required 	Description
+coin 	query 	string 	false 	none
+withdrawOrderId 	query 	string 	false 	client id for withdraw
+status 	query 	integer 	false 	0(0:Email Sent,1:Cancelled 2:Awaiting Approval 3:Rejected 4:Processing 5:Failure 6:Completed)
+offset 	query 	integer 	false 	none
+limit 	query 	integer 	false 	Default 100; max 1000.
+startTime 	query 	long 	false 	Default: 90 days from current timestamp
+endTime 	query 	long 	false 	Default: present timestamp
+recvWindow 	query 	long 	false 	The value cannot be greater than 60000
+timestamp 	query 	long 	true 	none
+
+    Example responses
+
+    200 Response
+
+[
+  {
+    "address": "0x94df8b352de7f46f64b01d3666bf6e936e44ce60",
+    "amount": "8.91000000",
+    "applyTime": "2019-10-12 11:12:02",
+    "coin": "USDT",
+    "id": "1",
+    "withdrawOrderId": "WITHDRAWtest123",
+    "network": "ETH",
+    "transferType": 0,
+    "status": 6,
+    "transactionFee": "0.004",
+    "confirmNo": 3,
+    "info": "The address is not valid. Please confirm with the recipient",
+    "txId": "0xb5ef8c13b968a406cc62a93a8bd80f9e9a906ef1b3fcf20a2e48573c17659268"
+  },
+  {
+    "address": "1FZdVHtiBqMrWdjPyRPULCUceZPJ2WLCsB",
+    "amount": "0.00150000",
+    "applyTime": "2019-09-24 12:43:45",
+    "coin": "BTC",
+    "id": "2",
+    "withdrawOrderId": "WITHDRAWtest123",
+    "network": "BTC",
+    "status": 6,
+    "transactionFee": "0.004",
+    "transferType": 0,
+    "confirmNo": 2,
+    "info": "",
+    "txId": "60fd9007ebfddc753455f95fafa808c4302c836e4d1eebc5a132c36c1d8ac354"
+  }
+]
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+To perform this operation, you must be authenticated by means of one of the following methods: X-MBX-APIKEY
+Websocket Market Streams
+General WSS information
+
+    There is one base endpoint, endpoint address: wss://stream.commex.com
+    Streams can be accessed in a combined stream
+    Combined streams are accessed at ?streams=<streamName1>/<streamName2>/<streamName3>
+    Combined stream events are wrapped as follows: {"stream":"<streamName>","data":<rawPayload>}
+    All symbols for streams are lowercase
+    A single connection to either of the base endpoints is only valid for 24 hours; expect to be disconnected at the 24 hour mark
+    The websocket server will send a ping frame every 3 minutes. If the websocket server does not receive a pong frame back from the connection within a 10 minute period, the connection will be disconnected. Unsolicited pong frames are allowed.
+
+Websocket Limits
+
+    WebSocket connections have a limit of 5 incoming messages per second. A message is considered:
+        A PING frame
+        A PONG frame
+        A JSON controlled message (e.g. subscribe, unsubscribe)
+    A connection that goes beyond the limit will be disconnected; IPs that are repeatedly disconnected may be banned.
+    A single connection can listen to a maximum of 1024 streams.
+
+Live Subscribing/Unsubscribing to streams
+
+    The following data can be sent through the websocket instance in order to subscribe/unsubscribe from streams. Examples can be seen below.
+    The id used in the JSON payloads is an unsigned INT used as an identifier to uniquely identify the messages going back and forth.
+    In the response, if the result received is null this means the request sent was a success for non-query requests (e.g. Subscribing/Unsubscribing).
+
+Subscribe to a stream
+
+    Request
+
+  {
+    "method": "SUBSCRIBE",
+    "params": [
+      "btcusdt@aggTrade",
+      "btcusdt@depth"
+    ],
+    "id": 1
+  }
+
+    Response
+
+  {
+    "result": null,
+    "id": 1
+  }
+
+Unsubscribe to a stream
+
+    Request
+
+  {
+    "method": "UNSUBSCRIBE",
+    "params": [
+      "btcusdt@depth"
+    ],
+    "id": 312
+  }
+
+    Response
+
+  {
+    "result": null,
+    "id": 312
+  }
+
+Listing Subscriptions
+
+    Request
+
+  {
+    "method": "LIST_SUBSCRIPTIONS",
+    "id": 3
+  }
+
+    Response
+
+  {
+    "result": [
+      "btcusdt@aggTrade"
+    ],
+    "id": 3
+  }
+
+Setting Properties
+
+Currently, the only property that can be set is whether combined stream payloads are enabled or not. The combined property is set to true when connecting using ?streams=.
+
+    Request
+
+  {
+    "method": "SET_PROPERTY",
+    "params": [
+      "combined",
+      true
+    ],
+    "id": 5
+  }
+
+    Response
+
+  {
+    "result": null,
+    "id": 5
+  }
+
+Retrieving Properties
+
+    Request
+
+  {
+    "method": "GET_PROPERTY",
+    "params": [
+      "combined"
+    ],
+    "id": 2
+  }
+
+    Response
+
+  {
+    "result": true, // Indicates that combined is set to true.
+    "id": 2
+  }
+
+Error Messages
+Error Message 	Description
+{"code": 0, "msg": "Unknown property","id": %s} 	Parameter used in the SET_PROPERTY or GET_PROPERTY was invalid
+{"code": 1, "msg": "Invalid value type: expected Boolean"} 	Value should only be true or false
+{"code": 2, "msg": "Invalid request: property name must be a string"} 	Property name provided was invalid
+{"code": 2, "msg": "Invalid request: request ID must be an unsigned integer"} 	Parameter id had to be provided or the value provided in the id parameter is an unsupported type
+{"code": 2, "msg": "Invalid request: unknown variant %s, expected one of SUBSCRIBE, UNSUBSCRIBE, LIST_SUBSCRIPTIONS, SET_PROPERTY, GET_PROPERTY at line 1 column 28"} 	Possible typo in the provided method or provided method was neither of the expected values
+{"code": 2, "msg": "Invalid request: too many parameters"} 	Unnecessary parameters provided in the data
+{"code": 2, "msg": "Invalid request: property name must be a string"} 	Property name was not provided
+{"code": 2, "msg": "Invalid request: missing field method at line 1 column 73"} 	method was not provided in the data
+{"code":3,"msg":"Invalid JSON: expected value at line %s column %s"} 	JSON data sent has incorrect syntax.
+Aggregate Trade Streams
+
+The Aggregate Trade Streams push trade information that is aggregated for a single taker order.
+
+Stream Name: <symbol>@aggTrade
+
+Update Speed: Real-time
+
+Payload:
+
+{
+  "e": "aggTrade",
+  "E": 1676985687671, // currentTimeMillis
+  "a": 1106,          // aggTradeId
+  "s": "BTCUSDT",
+  "p": "265.000000000", // price
+  "q": "0.660385", // quantity
+  "f": 1398,       // firstTradeId
+  "l": 1398,       // lastTradeId
+  "T": 1676985687498, // lastTransactTime
+  "m": false      // isBuyerMaker
+}
+
+Trade Streams
+
+The Trade Streams push raw trade information; each trade has a unique buyer and seller.
+
+Stream Name: <symbol>@trade
+
+Update Speed: Real-time
+
+Payload:
+
+{
+  "e": "trade",
+  "E": 1677039110296, // currentTimeMillis
+  "T": 1677039110268, // timeStampOfExecutionReport
+  "s": "BTCUSDT",
+  "t": 1406,          // execIdOfExecutionReport
+  "p": "265.500000000", // fillPrice
+  "q": "0.100000",      // fillQty
+  "m": true            // isBuyerMaker
+}
+
+Kline/Candlestick Streams
+
+The Kline/Candlestick Stream push updates to the current klines/candlestick every second.
+
+Kline/Candlestick chart intervals:
+
+m -> minutes; h -> hours; d -> days; w -> weeks; M -> months
+
+    1m
+    3m
+    5m
+    15m
+    30m
+    1h
+    2h
+    4h
+    6h
+    8h
+    12h
+    1d
+    3d
+    1w
+    1M
+
+Stream Name: <symbol>@kline_<interval>
+
+Update Speed: 2000ms
+
+Payload:
+
+{
+  "e": "kline",     // Event type
+  "E": 123456789,   // Event time
+  "s": "BTCUSDT",    // Symbol
+  "k": {
+    "t": 123400000, // Kline start time
+    "T": 123460000, // Kline close time
+    "s": "BTCUSDT",  // Symbol
+    "i": "1m",      // Interval
+    "f": 100,       // First trade ID
+    "L": 200,       // Last trade ID
+    "o": "0.0010",  // Open price
+    "c": "0.0020",  // Close price
+    "h": "0.0025",  // High price
+    "l": "0.0015",  // Low price
+    "v": "1000",    // Base asset volume
+    "n": 100,       // Number of trades
+    "x": false,     // Is this kline closed?
+    "q": "1.0000",  // Quote asset volume
+    "V": "500",     // Taker buy base asset volume
+    "Q": "0.500",   // Taker buy quote asset volume
+    "B": "123456"   // Ignore
   }
 }
+
+Individual Symbol Mini Ticker Stream
+
+24hr rolling window mini-ticker statistics. These are NOT the statistics of the UTC day, but a 24hr rolling window for the previous 24hrs.
+
+Stream Name: <symbol>@miniTicker
+
+Update Speed: 1000ms
+
+Payload:
+
+{
+  "e": "24hrMiniTicker",
+  "E": 1676980794596, // timestamp
+  "s": "BTCUSDT",
+  "c": "265.000000000", // lastPrice
+  "o": "265.000000000", // openPrice
+  "h": "265.000000000", // highPrice
+  "l": "265.000000000", // lowPrice
+  "v": "7.037735", // volume
+  "q": "1864.999775000" // quoteVolume
+}
+
+All Market Mini Tickers Stream
+
+24hr rolling window mini-ticker statistics for all symbols that changed in an array. These are NOT the statistics of the UTC day, but a 24hr rolling window for the previous 24hrs. Note that only tickers that have changed will be present in the array.
+
+Stream Name: !miniTicker@arr
+
+Update Speed: 1000ms
+
+Payload:
+
+[
+  {
+    // Same as <symbol>@miniTicker payload
+  },
+];
+
+Individual Symbol Ticker Streams
+
+24hr rolling window ticker statistics for a single symbol. These are NOT the statistics of the UTC day, but a 24hr rolling window for the previous 24hrs.
+
+Stream Name: <symbol>@ticker
+
+Update Speed: 1000ms
+
+Payload:
+
+{
+  "e": "24hrTicker",
+  "E": 1676982939357,
+  "s": "BTCUSDT",
+  "p": "0.000000000",    // priceChange
+  "P": "0.00",           // priceChangePercent
+  "w": "265.00000000",   // weightedAvgPrice
+  "c": "265.000000000",  // lastPrice
+  "Q": "0.339615",       // lastQty
+  "o": "265.000000000",  // openPrice
+  "h": "265.000000000",  // highPrice
+  "l": "265.000000000",  // lowPrice
+  "v": "8.037735",       // volume
+  "q": "2129.999775000", // quoteVolume
+  "O": 1676899380000,    // openTime
+  "C": 1676982939337,    // closeTime
+  "F": 1381,             // firstTradeId
+  "L": 1397,             // lastTradeId
+  "n": 17                // numOfTrades
+}
+
+All Market Tickers Stream
+
+24hr rolling window ticker statistics for all symbols that changed in an array. These are NOT the statistics of the UTC day, but a 24hr rolling window for the previous 24hrs. Note that only tickers that have changed will be present in the array.
+
+Stream Name: !ticker@arr
+
+Update Speed: 1000ms
+
+Payload:
+
+[
+  {
+    // Same as <symbol>@ticker payload
+  },
+];
+
+Individual Symbol Rolling Window Statistics Streams
+
+Rolling window ticker statistics for a single symbol, computed over multiple windows.
+
+Stream Name: <symbol>@ticker_<window_size>
+
+Window Sizes: 1h,4h
+
+Update Speed: 1000ms
+
+Note: This stream is different from the <symbol>@ticker stream. The open time "O" always starts on a minute, while the closing time "C" is the current time of the update. As such, the effective window might be up to 59999ms wider that <window_size>.
+
+Payload:
+
+{
+  "e": "24hrTicker",
+  "E": 1676982939357,
+  "s": "BTCUSDT",
+  "p": "0.000000000",    // priceChange
+  "P": "0.00",           // priceChangePercent
+  "w": "265.00000000",   // weightedAvgPrice
+  "c": "265.000000000",  // lastPrice
+  "Q": "0.339615",       // lastQty
+  "o": "265.000000000",  // openPrice
+  "h": "265.000000000",  // highPrice
+  "l": "265.000000000",  // lowPrice
+  "v": "8.037735",       // volume
+  "q": "2129.999775000", // quoteVolume
+  "O": 1676899380000,    // openTime
+  "C": 1676982939337,    // closeTime
+  "F": 1381,             // firstTradeId
+  "L": 1397,             // lastTradeId
+  "n": 17                // numOfTrades
+}
+
+All Market Rolling Window Statistics Streams
+
+Rolling window ticker statistics for all market symbols, computed over multiple windows. Note that only tickers that have changed will be present in the array.
+
+Stream Name: !ticker_<window-size>@arr
+
+Window Size: 1h,4h
+
+Update Speed: 1000ms
+
+Payload:
+
+[
+  {
+    // Same as <symbol>@ticker_<window-size> payload,
+    // one for each symbol updated within the interval.
+  },
+];
+
+Individual Symbol Book Ticker Streams
+
+Pushes any update to the best bid or ask's price or quantity in real-time for a specified symbol.
+
+Stream Name: <symbol>@bookTicker
+
+Update Speed: Real-time
+
+Payload:
+
+
+{
+  "u": 30608330,   // update id
+  "e": "bookTicker",
+  "s": "BTCUSDT",
+  "b": "265.500000000", // bestBidPrice
+  "B": "2.000000",      // bestBidQty
+  "a": "266.000000000", // bestAskPrice
+  "A": "1.962407",      // bestAskQty
+  "T": 1676989489943,   // lastTransactionTime
+  "E": 1676989489958.   // currentTimeMillis
+}
+
+All Book Tickers Stream
+
+Pushes any update to the best bid or ask's price or quantity in real-time for all symbols.
+
+Stream Name: !bookTicker
+
+Update Speed: Real-time
+
+Payload:
+
+{
+  // Same as <symbol>@bookTicker payload
+}
+
+Partial Book Depth Streams
+
+Top <levels> bids and asks, pushed every second. Valid <levels> are 5, 10, or 20.
+
+Stream Names: <symbol>@depth<levels> OR <symbol>@depth<levels>@100ms
+
+Update Speed: 1000ms or 100ms
+
+Payload:
+
+{
+    "e": "depthUpdate",
+    "E": 1677038400454,  // currentTimeMillis
+    "T": 1677038400160,  // transactTime
+    "s": "BNBUSDT",
+    "U": 306910,         // firstUpdateId
+    "u": 306910,         // lastUpdateId
+    "pu": -1,            // prevUpdateId
+    "b": [],             // bid
+    "a": [               // ask
+      [
+        "300.000000",    // price
+        "0.20"           // qty
+      ]
+    ]
+}
+
+Diff. Depth Stream
+
+Order book price and quantity depth updates used to locally manage an order book.
+
+Stream Name: <symbol>@depth OR <symbol>@depth@100ms
+
+Update Speed: 1000ms or 100ms
+
+Payload:
+
+{
+    "e": "depthUpdate",
+    "E": 1677038400454,  // currentTimeMillis
+    "T": 1677038400160,  // transactTime
+    "s": "BTCUSDT",
+    "U": 306910,         // firstUpdateId
+    "u": 306910,         // lastUpdateId
+    "pu": -1,            // prevUpdateId
+    "b": [],             // bid
+    "a": [               // ask
+      [
+        "300.000000",    // price
+        "0.20"           // qty
+      ]
+    ]
+  }
+
+How to manage a local order book correctly
+
+    Open a stream to wss://stream.commex.com/streams?streams=btcusdt@depth.
+    Buffer the events you receive from the stream.
+    Get a depth snapshot from https://api.commex.com/api/v1/depth?symbol=BTCUSDT&limit=1000.
+    Drop any event where u is <= lastUpdateId in the snapshot.
+    The first processed event should have U <= lastUpdateId+1 AND u >= lastUpdateId+1.
+    While listening to the stream, each new event's U should be equal to the previous event's u+1.
+    The data in each event is the absolute quantity for a price level.
+    If the quantity is 0, remove the price level.
+    Receiving an event that removes a price level that is not in your local order book can happen and is normal.
+
+Note: Due to depth snapshots having a limit on the number of price levels, a price level outside of the initial snapshot that doesn't have a quantity change won't have an update in the Diff. Depth Stream. Consequently, those price levels will not be visible in the local order book even when applying all updates from the Diff. Depth Stream correctly and cause the local order book to have some slight differences with the real order book. However, for most use cases the depth limit of 5000 is enough to understand the market and trade effectively.
+User Data Streams
+
+    The base API endpoint is: https://api.commex.com
+    A User Data Stream listenKey is valid for 60 minutes after creation.
+    Doing a PUT on an active listenKey will extend its validity for 60 minutes.
+    Doing a DELETE on an active listenKey will close the stream and invalidate the listenKey.
+    Doing a POST on an account with an active listenKey will return the currently active listenKey and extend its validity for 60 minutes.
+    The base websocket endpoint is: wss://stream.commex.com/streams.
+    User Data Streams are accessed at ?streams=<listenKey>.
+    A single connection to websocket endpoint is only valid for 24 hours; expect to be disconnected at the 24 hour mark.
+
+Payload: Account Update
+
+outboundAccountPosition is sent any time an account balance has changed and contains the assets that were possibly changed by the event that generated the balance change.
+
+    Payload
+
+{
+  "e": "outboundAccountPosition", //Event type
+  "E": 1564034571105,             //Event Time
+  "u": 1564034571073,             //Time of last account update
+  "B": [                          //Balances Array
+    {
+      "a": "ETH",                 //Asset
+      "f": "10000.000000",        //Free
+      "l": "0.000000"             //Locked
+    }
+  ]
+}
+
+Payload: Balance Update
+
+Balance Update occurs during the following: * Deposits or withdrawals from the account * Transfer of funds between accounts (e.g. Spot to Margin)
+
+    Payload
+
+{
+  "e": "balanceUpdate",         //Event Type
+  "E": 1573200697110,           //Event Time
+  "a": "BTC",                   //Asset
+  "d": "100.00000000",          //Balance Delta
+  "T": 1573200697068            //Clear Time
+}
+
+Payload: Order Update
+
+Orders are updated with the executionReport event.
+
+Check the Rest API Documentation and below for relevant enum definitions.
+
+Average price can be found by doing Z divided by z.
+
+    Payload
+
+{
+  "e": "executionReport",        // Event type
+  "E": 1499405658658,            // Event time
+  "s": "ETHBTC",                 // Symbol
+  "c": "mUvoqJxFIILMdfAW5iGSOW", // Client order ID
+  "S": "BUY",                    // Side
+  "o": "LIMIT",                  // Order type
+  "f": "GTC",                    // Time in force
+  "q": "1.00000000",             // Order quantity
+  "p": "0.10264410",             // Order price
+  "P": "0.00000000",             // Stop price
+  "d": 4,                        // Trailing Delta; This is only visible if the order was a trailing stop order.
+  "F": "0.00000000",             // Iceberg quantity
+  "g": -1,                       // OrderListId
+  "C": null,                     // Original client order ID; This is the ID of the order being canceled
+  "x": "NEW",                    // Current execution type
+  "X": "NEW",                    // Current order status
+  "r": "NONE",                   // Order reject reason; will be an error code.
+  "i": 4293153,                  // Order ID
+  "l": "0.00000000",             // Last executed quantity
+  "z": "0.00000000",             // Cumulative filled quantity
+  "L": "0.00000000",             // Last executed price
+  "n": "0",                      // Commission amount
+  "N": null,                     // Commission asset
+  "T": 1499405658657,            // Transaction time
+  "t": -1,                       // Trade ID
+  "I": 8641984,                  // Ignore
+  "w": true,                     // Is the order on the book?
+  "m": false,                    // Is this trade the maker side?
+  "M": false,                    // Ignore
+  "O": 1499405658657,            // Order creation time
+  "Z": "0.00000000",             // Cumulative quote asset transacted quantity
+  "Y": "0.00000000",             // Last quote asset transacted quantity (i.e. lastPrice * lastQty)
+  "Q": "0.00000000"              // Quote Order Qty
+}
+
+Execution types:
+
+    NEW - The order has been accepted into the engine.
+    CANCELED - The order has been canceled by the user.
+    REPLACED (currently unused)
+    REJECTED - The order has been rejected and was not processed. (This is never pushed into the User Data Stream)
+    TRADE - Part of the order or all of the order's quantity has filled.
+    EXPIRED - The order was canceled according to the order type's rules (e.g. LIMIT FOK orders with no fill, LIMIT IOC or MARKET orders that partially fill) or by the exchange, (e.g. orders canceled during liquidation, orders canceled during maintenance)
+
+If the order is an OCO, an event will be displayed named ListStatus in addition to the executionReport event.
+
+    Payload
+
+{
+  "e": "listStatus",                //Event Type
+  "E": 1564035303637,               //Event Time
+  "s": "ETHBTC",                    //Symbol
+  "g": 2,                           //OrderListId
+  "c": "OCO",                       //Contingency Type
+  "l": "EXEC_STARTED",              //List Status Type
+  "L": "EXECUTING",                 //List Order Status
+  "r": "NONE",                      //List Reject Reason
+  "C": "F4QN4G8DlFATFlIUQ0cjdD",    //List Client Order ID
+  "T": 1564035303625,               //Transaction Time
+  "O": [                            //An array of objects
+    {
+      "s": "ETHBTC",                //Symbol
+      "i": 17,                      // orderId
+      "c": "AJYsMjErWJesZvqlJCTUgL" //ClientOrderId
+    },
+    {
+      "s": "ETHBTC",
+      "i": 18,
+      "c": "bfYPSQdLoqAJeNrOr9adzq"
+    }
+  ]
+}
+
+Ping/Keep-alive a ListenKey (USER_STREAM)
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/listenKey?listenKey=string");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("PUT");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+PUT /api/v1/listenKey
+
+Keepalive a user data stream to prevent a time out. User data streams will close after 60 minutes. It's recommended to send a ping about every 30 minutes.
+
+Weight: 1
+Parameters
+Name 	In 	Type 	Required 	Description
+listenKey 	query 	string 	true 	listenKey for type GLOBAL, do NOT send SITE listenKey.
+
+    Example responses
+
+    200 Response
+
+{}
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+To perform this operation, you must be authenticated by means of one of the following methods: X-MBX-APIKEY
+Create a ListenKey (USER_STREAM)
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/listenKey");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("POST");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+POST /api/v1/listenKey
+
+Start a new user data stream. The stream will close after 60 minutes unless a keepalive is sent. If the account has an active listenKey, that listenKey will be returned and its validity will be extended for 60 minutes.
+
+Weight: 1
+
+    Example responses
+
+    200 Response
+
+"    {        "listenKey": "QCUKUrYt7LflXQbi9bG6M1NxIaEPe4OhFNTgEYdfACyeutE81zGofPHw2BMrFGEl",        "type": "SITE"    }
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+To perform this operation, you must be authenticated by means of one of the following methods: X-MBX-APIKEY
+Close a ListenKey (USER_STREAM)
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/listenKey?listenKey=string");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("DELETE");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+DELETE /api/v1/listenKey
+
+Close out a user data stream.
+
+Weight: 1
+Parameters
+Name 	In 	Type 	Required 	Description
+listenKey 	query 	string 	true 	listenKey for type GLOBAL, do NOT send SITE listenKey.
+
+    Example responses
+
+    200 Response
+
+{}
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+To perform this operation, you must be authenticated by means of one of the following methods: X-MBX-APIKEY
+Kyc Endpoints
+Cloud user bind info
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/inner/oauth/queryOauthBindInfo?openId=string&bizEntityKey=string");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("POST");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+POST /api/v1/inner/oauth/queryOauthBindInfo
+
+Get the user bind info of binance and cloud.
+
+Weight(IP): 10
+Parameters
+Name 	In 	Type 	Required 	Description
+openId 	query 	string 	true 	The openId of .com oauth
+bizEntityKey 	query 	string 	true 	The userId of cloud
+
+    Example responses
+
+    200 Response
+
+{  "brokerAccountId": "123",  "openId": "A456"  "userId": "789"}
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+This operation does not require authentication
+Kyc status
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/inner/getCloudKycStatus?openId=string&bizEntityKey=string");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("POST");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+POST /api/v1/inner/getCloudKycStatus
+
+Get current account kyc status.
+
+Weight(IP): 10
+Parameters
+Name 	In 	Type 	Required 	Description
+openId 	query 	string 	true 	The openId of .com oauth
+bizEntityKey 	query 	string 	true 	The userId of cloud
+
+    Example responses
+
+    200 Response
+
+{ "kycPass": true }
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+This operation does not require authentication
+get all asset
+
+    Code samples
+
+URL obj = new URL("https://api.commex.com/api/v1/inner/getAllAsset");
+HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+con.setRequestMethod("POST");
+int responseCode = con.getResponseCode();
+BufferedReader in = new BufferedReader(
+    new InputStreamReader(con.getInputStream()));
+String inputLine;
+StringBuffer response = new StringBuffer();
+while ((inputLine = in.readLine()) != null) {
+    response.append(inputLine);
+}
+in.close();
+System.out.println(response.toString());
+
+POST /api/v1/inner/getAllAsset
+
+get all asset.
+
+Weight(IP): 10
+
+    Example responses
+
+    200 Response
+
+{"assetCode":"BNB""assetName":"BNB"}
+
+Responses
+Status 	Meaning 	Description 	Schema
+200 	OK 	OK 	Inline
+Response Schema
+This operation does not require authentication 
